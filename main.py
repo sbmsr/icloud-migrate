@@ -1,15 +1,20 @@
 from pyicloud import PyiCloudService
 from shutil import copyfileobj
+import os
 from os import mkdir, path
+from dotenv import load_dotenv
 
-username = input("icloud username: ")
-password = input("icloud password: ")
+load_dotenv()
+
+username = os.getenv('username') or input("icloud username: ")
+password =  os.getenv('password') or input("icloud password: ")
+migration_root = os.getenv('migration_root') or input("desired migration directory: ")
 
 api = PyiCloudService(username, password)
-album_subdirectory="albums/"
+album_subdirectory = migration_root + "/albums/"
 
 try:
-    mkdir(album_subdirectory)
+    os.makedirs(album_subdirectory)
 except:
     pass
 
