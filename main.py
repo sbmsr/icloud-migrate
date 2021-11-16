@@ -61,8 +61,15 @@ for album in api.photos.albums:
     except:
         pass
 
+    if album == 'All Photos':
+        continue
+
     for photo in api.photos.albums[album].photos:
-        download = photo.download()
+        download = ''
+        try:
+            download = photo.download()
+        except:
+            continue
         photo_path = album_subdirectory + album + '/' + photo.filename
         with open(photo_path, 'wb') as opened_file:
             print("writing " + photo_path)
