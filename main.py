@@ -66,10 +66,18 @@ def get_photo_hashes(photo, local_path):
 
 def download_and_delete_photo(photo):
     local_photo_path = album_subdirectory + album + '/' + photo.filename
-    with open(local_photo_path, 'wb') as opened_file:
-        copyfileobj(photo.download().raw, opened_file)
+    try:
+        with open(local_photo_path, 'wb') as opened_file:
+            copyfileobj(photo.download().raw, opened_file)
+    except:
+        return
 
-    hashes = get_photo_hashes(photo, local_photo_path)
+    try:
+        hashes = get_photo_hashes(photo, local_photo_path)
+    except:
+        os.remove(local_photo_path)
+        return
+
     if hashes[0] == hashes[1]:
         res = photo.delete()
         if res.ok:
