@@ -3,6 +3,8 @@ from shutil import copyfileobj
 import os
 from os import mkdir, path
 from dotenv import load_dotenv
+import filecmp
+import hashlib
 
 load_dotenv()
 
@@ -55,30 +57,38 @@ elif api.requires_2sa:
         print("Failed to verify verification code")
         sys.exit(1)
 
+def get_photo_hashes(photo, local_path):
+    remote_hash = hashlib.md5(photo.download().content).hexdigest()
+    with open(local_path, 'rb') as opened_file:
+        content = opened_file.read()
+        local_hash = hashlib.md5(content).hexdigest()
+    return [remote_hash, local_hash]
+
+def download_and_delete_photo(photo):
+    local_photo_path = album_subdirectory + album + '/' + photo.filename
+    with open(local_photo_path, 'wb') as opened_file:
+        copyfileobj(photo.download().raw, opened_file)
+
+    hashes = get_photo_hashes(photo, local_photo_path)
+    if hashes[0] == hashes[1]:
+        res = photo.delete()
+        if res.ok:
+            print("success: " + local_photo_path)
+        else:
+            print("failed to delete " + photo.filename + " in album " + album) 
+    else:
+        print("photo hash mismatch: on disk is " + hashes[1] + " - on icloud is " + hashes[0] + ". Moving on . . . ") 
+        os.remove(local_photo_path)
+
 for album in api.photos.albums:
     try:
         mkdir(album_subdirectory + album)
     except:
         pass
 
-    if album != 'All Photos':
+    if album == 'All Photos':
         continue
 
     for photo in api.photos.albums[album].photos:
-        download = ''
-        try:
-            download = photo.download()
-        except e:
-            print(e)
-            continue
-        photo_path = album_subdirectory + album + '/' + photo.filename
-        with open(photo_path, 'wb') as opened_file:
-            print("writing " + photo_path)
-            copyfileobj(download.raw, opened_file)
-            if path.getsize(photo_path) == photo.size:
-                res = photo.delete()
-                if not res.ok:
-                    print("failed to delete " + photo.filename + " in album " + album) 
-            else:
-                print("photo size mismatch: " + str(path.getsize(photo_path)) + " - " + str(photo.size)) 
+        download_and_delete_photo(photo)
 
