@@ -61,14 +61,15 @@ for album in api.photos.albums:
     except:
         pass
 
-    if album == 'All Photos':
+    if album != 'All Photos':
         continue
 
     for photo in api.photos.albums[album].photos:
         download = ''
         try:
             download = photo.download()
-        except:
+        except e:
+            print(e)
             continue
         photo_path = album_subdirectory + album + '/' + photo.filename
         with open(photo_path, 'wb') as opened_file:
@@ -78,4 +79,6 @@ for album in api.photos.albums:
                 res = photo.delete()
                 if not res.ok:
                     print("failed to delete " + photo.filename + " in album " + album) 
+            else:
+                print("photo size mismatch: " + str(path.getsize(photo_path)) + " - " + str(photo.size)) 
 

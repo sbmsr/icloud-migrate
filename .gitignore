@@ -3,3 +3,4 @@ albums/**
 .DS_Store
 .env
 .scratch/**
+photos/**
