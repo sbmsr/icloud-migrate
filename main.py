@@ -94,7 +94,7 @@ for album in api.photos.albums:
     except:
         pass
 
-    if album == 'All Photos':
+    if album != 'All Photos':
         continue
 
     for photo in api.photos.albums[album].photos:
