@@ -5,6 +5,8 @@ from os import mkdir, path
 from dotenv import load_dotenv
 import filecmp
 import hashlib
+from time import sleep
+from pyicloud.exceptions import PyiCloudAPIResponseException
 
 load_dotenv()
 
@@ -65,28 +67,43 @@ def get_photo_hashes(photo, local_path):
     return [remote_hash, local_hash]
 
 def download_and_delete_photo(photo):
-    local_photo_path = album_subdirectory + album + '/' + photo.filename
-    try:
-        with open(local_photo_path, 'wb') as opened_file:
-            copyfileobj(photo.download().raw, opened_file)
-    except:
-        return
-
-    try:
-        hashes = get_photo_hashes(photo, local_photo_path)
-    except:
-        os.remove(local_photo_path)
-        return
-
-    if hashes[0] == hashes[1]:
-        res = photo.delete()
-        if res.ok:
-            print("success: " + local_photo_path)
-        else:
-            print("failed to delete " + photo.filename + " in album " + album) 
-    else:
-        print("photo hash mismatch: on disk is " + hashes[1] + " - on icloud is " + hashes[0] + ". Moving on . . . ") 
-        os.remove(local_photo_path)
+    max_retries = 5
+    base_delay = 30  # Start with 30 seconds delay
+    
+    for attempt in range(max_retries):
+        try:
+            local_photo_path = album_subdirectory + album + '/' + photo.filename
+            with open(local_photo_path, 'wb') as opened_file:
+                copyfileobj(photo.download().raw, opened_file)
+                
+            hashes = get_photo_hashes(photo, local_photo_path)
+            
+            if hashes[0] == hashes[1]:
+                res = photo.delete()
+                if res.ok:
+                    print("success: " + local_photo_path)
+                    return
+                else:
+                    print("failed to delete " + photo.filename + " in album " + album)
+                    return
+            else:
+                print("photo hash mismatch: on disk is " + hashes[1] + " - on icloud is " + hashes[0] + ". Moving on . . . ")
+                os.remove(local_photo_path)
+                return
+                
+        except PyiCloudAPIResponseException as e:
+            if "SERVER_OVERLOADED" in str(e):
+                if attempt < max_retries - 1:  # Don't sleep on last attempt
+                    delay = base_delay * (2 ** attempt)  # Exponential backoff
+                    print(f"Server overloaded, retrying in {delay} seconds... (Attempt {attempt + 1}/{max_retries})")
+                    sleep(delay)
+                    continue
+            raise  # Re-raise if it's not a SERVER_OVERLOADED error
+        except Exception as e:
+            print(f"Error processing {photo.filename}: {str(e)}")
+            if path.exists(local_photo_path):
+                os.remove(local_photo_path)
+            return
 
 for album in api.photos.albums:
     try:
@@ -94,9 +111,13 @@ for album in api.photos.albums:
     except:
         pass
 
-    if album != 'All Photos':
-        continue
-
-    for photo in api.photos.albums[album].photos:
-        download_and_delete_photo(photo)
+    # Process Favorites first, then All Photos, skip everything else
+    if album == 'Favorites':
+        print("Processing Favorites album...")
+        for photo in api.photos.albums[album].photos:
+            download_and_delete_photo(photo)
+    elif album == 'All Photos':
+        print("Processing All Photos album...")
+        for photo in api.photos.albums[album].photos:
+            download_and_delete_photo(photo)
 
