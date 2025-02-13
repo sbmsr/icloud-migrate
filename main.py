@@ -17,6 +17,9 @@ migration_root = os.getenv('migration_root') or input("desired migration directo
 api = PyiCloudService(username, password)
 album_subdirectory = migration_root + "/albums/"
 
+# Track processed photos to avoid duplicates
+processed_photos = set()
+
 try:
     os.makedirs(album_subdirectory)
 except:
@@ -67,6 +70,10 @@ def get_photo_hashes(photo, local_path):
     return [remote_hash, local_hash]
 
 def download_and_delete_photo(photo):
+    # Skip if we've already processed this photo
+    if photo.id in processed_photos:
+        return
+
     max_retries = 5
     base_delay = 30  # Start with 30 seconds delay
     
@@ -82,6 +89,7 @@ def download_and_delete_photo(photo):
                 res = photo.delete()
                 if res.ok:
                     print("success: " + local_photo_path)
+                    processed_photos.add(photo.id)
                     return
                 else:
                     print("failed to delete " + photo.filename + " in album " + album)
@@ -105,19 +113,43 @@ def download_and_delete_photo(photo):
                 os.remove(local_photo_path)
             return
 
+# Define priority albums
+priority_albums = ['Favorites']
+
+# First process priority albums
+for album_name in priority_albums:
+    if album_name in api.photos.albums:
+        album = album_name
+        try:
+            mkdir(album_subdirectory + album)
+        except:
+            pass
+        
+        print(f"Processing priority album: {album}...")
+        for photo in api.photos.albums[album].photos:
+            download_and_delete_photo(photo)
+
+# Then process remaining albums (excluding All Photos)
 for album in api.photos.albums:
+    if album not in priority_albums and album != 'All Photos':
+        try:
+            mkdir(album_subdirectory + album)
+        except:
+            pass
+        
+        print(f"Processing album: {album}...")
+        for photo in api.photos.albums[album].photos:
+            download_and_delete_photo(photo)
+
+# Finally process All Photos
+if 'All Photos' in api.photos.albums:
+    album = 'All Photos'
     try:
         mkdir(album_subdirectory + album)
     except:
         pass
-
-    # Process Favorites first, then All Photos, skip everything else
-    if album == 'Favorites':
-        print("Processing Favorites album...")
-        for photo in api.photos.albums[album].photos:
-            download_and_delete_photo(photo)
-    elif album == 'All Photos':
-        print("Processing All Photos album...")
-        for photo in api.photos.albums[album].photos:
-            download_and_delete_photo(photo)
+    
+    print("Processing All Photos album...")
+    for photo in api.photos.albums[album].photos:
+        download_and_delete_photo(photo)
 
