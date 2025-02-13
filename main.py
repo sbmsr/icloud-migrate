@@ -116,6 +116,9 @@ def download_and_delete_photo(photo):
 # Define priority albums
 priority_albums = ['Favorites']
 
+# Define albums to ignore
+ignored_albums = ['Recently Deleted']
+
 # First process priority albums
 for album_name in priority_albums:
     if album_name in api.photos.albums:
@@ -129,9 +132,9 @@ for album_name in priority_albums:
         for photo in api.photos.albums[album].photos:
             download_and_delete_photo(photo)
 
-# Then process remaining albums (excluding All Photos)
+# Then process remaining albums (excluding All Photos and ignored albums)
 for album in api.photos.albums:
-    if album not in priority_albums and album != 'All Photos':
+    if album not in priority_albums and album not in ignored_albums and album != 'All Photos':
         try:
             mkdir(album_subdirectory + album)
         except:
